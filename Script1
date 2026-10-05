@@ -1,0 +1,43 @@
+# Jalankan dengan Powershell Administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Error "Script ini harus dijalankan sebagai Administrator."
+    exit
+}
+
+# Daftar nama folder user yang ingin dihapus (bukan domain\username) -> Khusus INTERNATIONAL\ -> Kalau Unknown Hapus manual
+$profilesToDelete = @(
+    "tnbin839","fghij","Dst"
+)
+
+foreach ($folderName in $profilesToDelete) {
+    $profilePath = "C:\Users\$folderName"
+    
+    try {
+        # Cari profil di WMI
+        $profile = Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalPath -ieq $profilePath }
+        
+        if ($null -ne $profile) {
+            if (-not $profile.Loaded) {
+                $profile | Remove-CimInstance
+                Write-Host "Profile '$folderName' berhasil dihapus via WMI." -ForegroundColor Green
+            }
+            else {
+                Write-Warning "Profile '$folderName' sedang digunakan. Logout dulu sebelum menghapus."
+            }
+        }
+        else {
+            # Kalau tidak ada di WMI, hapus folder manual
+            if (Test-Path $profilePath) {
+                Remove-Item -Path $profilePath -Recurse -Force
+                Write-Host "Folder profile '$folderName' dihapus manual." -ForegroundColor Yellow
+            }
+            else {
+                Write-Warning "Profile atau folder '$folderName' tidak ditemukan."
+            }
+        }
+    }
+    catch {
+        Write-Error "Gagal menghapus profile '$folderName': $_"
+    }
+}
